@@ -1,0 +1,397 @@
+ZepPay PRD
+1. Introduction
+This document outlines the technical specification for a remittance platform built for the Coinbase Hackathon. The platform enables sponsors in North America to send USDC to beneficiaries in other regions, who can then spend these funds with registered local vendors for pre-defined categories.
+Core Model Overview: Direct Sponsor Wallet to Vendor
+The platform operates on a model where:
+Sponsors have individual custodial wallets (managed by the platform via Coinbase Wallet as a Service - WaaS). They fund these wallets and create "Sponsorships" by allocating USDC from their specific WaaS wallet to a beneficiary for designated spending categories.
+Beneficiaries interact via a Telegram bot, receiving notifications and providing OTPs for transaction verification. They do not directly manage a crypto wallet.
+Vendors have non-custodial Smart Wallets (e.g., on Base) to receive payments. They initiate transactions for beneficiaries present at their location.
+Transactions are direct. Upon OTP verification, the platform backend instructs the Coinbase Wallet API to transfer USDC from the specific sponsor's WaaS wallet (that funded the relevant sponsorship) directly to the vendor's smart wallet. No central operational wallet pools funds before payout to the vendor.
+
+
+
+
+2. Database Schema (Postgres)
+Visualizing the ER Diagram
+https://www.mermaidchart.com/raw/bcfc7461-4ebe-4073-96a0-0bcb8eb203c0?theme=light&version=v0.1&format=svg
+
+ER Diagram (Mermaid Code)
+erDiagram
+    users ||--o{ sponsorships : "funds (sponsor)"
+    users ||--o{ vendor_categories : "is_categorized_as (vendor)"
+    users ||--o{ smart_wallets : "owns (vendor)"
+    users ||--o{ waas_wallets : "owns (sponsor)"
+    beneficiaries ||--o{ sponsorships : "receives"
+    categories ||--o{ sponsorship_allowed_categories : "applies_to"
+    categories ||--o{ vendor_categories : "applies_to"
+    sponsorships ||--o{ sponsorship_allowed_categories : "has_categories"
+    sponsorships ||--o{ executed_transactions : "funded_by"
+    pending_transactions ||--o{ executed_transactions : "fulfills"
+    users ||--o{ pending_transactions : "initiated_by_vendor"
+    beneficiaries ||--o{ pending_transactions : "for_beneficiary"
+    categories ||--o{ pending_transactions : "for_category"
+
+    users {
+        UUID id PK "Supabase auth.users.id"
+        TEXT email UNIQUE
+        TEXT phone_number UNIQUE NULLABLE
+        ENUM role "('sponsor', 'vendor')"
+        TEXT display_name NULLABLE
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+        TEXT raw_app_meta_data JSONB "Stores role, other Supabase auth meta"
+    }
+
+    waas_wallets {
+        UUID id PK
+        UUID user_id FK "references users.id (sponsor)"
+        TEXT coinbase_wallet_id UNIQUE "CDP WaaS Wallet ID"
+        TEXT wallet_address "Blockchain address of the WaaS wallet"
+        TEXT network_id "e.g., 'base-sepolia', 'ethereum-sepolia'"
+        DECIMAL usdc_balance "Cached/known USDC balance"
+        DECIMAL gas_balance "Cached/known native gas token balance (e.g., ETH)"
+        TIMESTAMPTZ last_balance_sync_at
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    smart_wallets {
+        UUID id PK
+        UUID user_id FK "references users.id (vendor)"
+        TEXT wallet_address UNIQUE "Blockchain address of the Smart Wallet"
+        TEXT network_id "e.g., 'base-sepolia'"
+        BOOLEAN is_platform_created
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    beneficiaries {
+        UUID id PK
+        TEXT phone_number_for_telegram UNIQUE
+        TEXT display_name NULLABLE
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    categories {
+        UUID id PK
+        TEXT name UNIQUE
+        TEXT description NULLABLE
+    }
+
+    vendor_categories {
+        UUID vendor_id FK "references users.id (vendor)"
+        UUID category_id FK "references categories.id"
+        PRIMARY KEY (vendor_id, category_id)
+    }
+
+    sponsorships {
+        UUID id PK
+        UUID sponsor_user_id FK "references users.id (sponsor)"
+        UUID sponsor_waas_wallet_id FK "references waas_wallets.id (source of funds)"
+        UUID beneficiary_id FK "references beneficiaries.id"
+        DECIMAL total_allocated_usdc
+        DECIMAL remaining_usdc "Initially same as total_allocated_usdc"
+        ENUM status "('active', 'depleted', 'cancelled')"
+        TEXT notes NULLABLE
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ expires_at NULLABLE
+    }
+
+    sponsorship_allowed_categories {
+        UUID sponsorship_id FK "references sponsorships.id"
+        UUID category_id FK "references categories.id"
+        PRIMARY KEY (sponsorship_id, category_id)
+    }
+
+    pending_transactions {
+        UUID id PK
+        UUID vendor_user_id FK "references users.id (vendor)"
+        UUID beneficiary_id FK "references beneficiaries.id"
+        UUID category_id FK "references categories.id"
+        UUID selected_sponsorship_id FK "references sponsorships.id (IMPORTANT: identified pre-OTP)"
+        DECIMAL amount_usdc
+        TEXT otp_hash
+        TIMESTAMPTZ otp_sent_at
+        TIMESTAMPTZ otp_expires_at
+        ENUM status "('pending_otp', 'otp_verified', 'expired', 'failed_verification', 'cancelled')"
+        TEXT vendor_notes NULLABLE
+        TIMESTAMPTZ created_at
+    }
+
+    executed_transactions {
+        UUID id PK
+        UUID pending_transaction_id FK "references pending_transactions.id"
+        UUID sponsorship_id FK "references sponsorships.id (source of funds)"
+        UUID source_waas_wallet_id FK "references waas_wallets.id (actual source wallet)"
+        UUID vendor_user_id FK "references users.id (vendor)"
+        UUID destination_smart_wallet_id FK "references smart_wallets.id (destination wallet)"
+        UUID beneficiary_id FK "references beneficiaries.id"
+        UUID category_id FK "references categories.id"
+        DECIMAL amount_usdc_transferred
+        TEXT coinbase_transaction_id NULLABLE "Transaction ID from CDP Wallet API"
+        TEXT onchain_transaction_hash NULLABLE "Actual blockchain tx hash"
+        ENUM status "('initiated', 'pending_confirmation', 'completed_onchain', 'failed_onchain', 'platform_failed')"
+        TEXT platform_notes NULLABLE
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+Table Definitions and Purpose
+users
+
+
+Purpose: Stores common information for both sponsors and vendors, leveraging Supabase Authentication. The role field differentiates them.
+Key Columns: id (links to Supabase auth.users), email, role, raw_app_meta_data (can store role for Supabase RLS).
+waas_wallets (Wallet as a Service Wallets)
+
+
+Purpose: Stores details of the custodial wallets created for each sponsor via Coinbase WaaS. These wallets hold the sponsor's USDC and are the direct source of funds for transactions.
+Key Columns: user_id (links to sponsor user), coinbase_wallet_id (from CDP), wallet_address, usdc_balance, gas_balance (critical for direct transfer model).
+smart_wallets
+
+
+Purpose: Stores details of the non-custodial smart contract wallets for vendors, where they receive USDC payments.
+Key Columns: user_id (links to vendor user), wallet_address (unique address on blockchain, e.g., Base).
+beneficiaries
+
+
+Purpose: Stores information about the individuals receiving funds. Identified primarily by their Telegram-linked phone number.
+Key Columns: phone_number_for_telegram (unique identifier for notifications and OTP).
+categories
+
+
+Purpose: Defines the pre-approved spending categories for sponsored funds (e.g., groceries, education, healthcare).
+Key Columns: name (unique category name).
+vendor_categories
+
+
+Purpose: A junction table linking vendors to the categories of goods/services they are approved to offer.
+Key Columns: vendor_id, category_id.
+sponsorships
+
+
+Purpose: Represents an allocation of funds from a specific sponsor (and their WaaS wallet) to a specific beneficiary. This is the core record tracking available funds for spending.
+Key Columns: sponsor_user_id, sponsor_waas_wallet_id (links to the exact WaaS wallet funding this), beneficiary_id, total_allocated_usdc, remaining_usdc.
+sponsorship_allowed_categories
+
+
+Purpose: A junction table linking each sponsorship to one or more allowed spending categories.
+Key Columns: sponsorship_id, category_id.
+pending_transactions
+
+
+Purpose: Stores details of a transaction initiated by a vendor while it awaits OTP verification from the beneficiary. It crucially stores selected_sponsorship_id which identifies the exact sponsor funding source before OTP.
+Key Columns: vendor_user_id, beneficiary_id, category_id, selected_sponsorship_id, amount_usdc, otp_hash, status.
+executed_transactions
+
+
+Purpose: Records all completed (or failed attempts at) on-chain transactions, detailing the source (sponsor's WaaS wallet), destination (vendor's smart wallet), amount, and status.
+Key Columns: pending_transaction_id, sponsorship_id (confirms the funding source), source_waas_wallet_id, destination_smart_wallet_id, amount_usdc_transferred, coinbase_transaction_id, onchain_transaction_hash, status.
+
+3. API Specifications
+A. Backend APIs (Next.js API Routes)
+Standard responses: 200 OK, 201 Created, 400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found, 500 Internal Server Error.
+All routes requiring authentication expect a Supabase JWT in the Authorization header (Bearer <token>).
+Authentication
+POST /api/auth/signup
+
+
+Request: { email, password, role ('sponsor'|'vendor'), display_name, phone_number (optional for sponsor, for vendor if used for login) }
+Response: { user, session } (from Supabase)
+Logic: Calls Supabase signup. Triggers internal post-signup flow (WaaS wallet creation for sponsor, Smart Wallet for vendor).
+POST /api/auth/login
+
+
+Request: { email, password }
+Response: { user, session } (from Supabase)
+POST /api/auth/logout
+
+
+Response: { message: "Logged out" }
+GET /api/auth/me
+
+
+Response: { user_id, email, role, display_name, phone_number, waas_wallet (if sponsor), smart_wallet (if vendor) }
+Sponsor Routes
+GET /api/sponsors/waas-wallets
+
+
+Response: [{ id, coinbase_wallet_id, wallet_address, network_id, usdc_balance, gas_balance, last_balance_sync_at }]
+Logic: Fetches sponsor's WaaS wallet details. Balances are ideally fetched live from CDP or from a recent cache.
+POST /api/sponsors/coinbase/onramp/initialize
+
+
+Request: { amount_usd, destination_waas_wallet_id (our DB ID) }
+Response: { onramp_session_id, widget_url } (details from Coinbase Onramp service)
+Logic: Server-side initiation of Coinbase Onramp session for security, directing funds to the sponsor's specified WaaS wallet.
+POST /api/sponsors/sponsorships
+
+
+Request: { beneficiary_phone_number, amount_usdc, category_ids: [UUID], notes (optional), expires_at (optional) }
+Response: { id, sponsor_user_id, beneficiary_id, total_allocated_usdc, remaining_usdc, status, categories: [{id, name}] }
+Logic:
+Find or create beneficiary by beneficiary_phone_number.
+Verify sponsor's WaaS wallet (linked via sponsor_waas_wallet_id in sponsorships) has sufficient USDC and GAS for potential future transactions.
+Create sponsorships record and sponsorship_allowed_categories entries.
+Notify beneficiary via Telegram.
+GET /api/sponsors/sponsorships
+
+
+Response: [{ id, beneficiary: {display_name, phone_number_for_telegram}, total_allocated_usdc, remaining_usdc, status, created_at, categories: [{id, name}] }]
+GET /api/sponsors/transactions
+
+
+Response: [{ id, beneficiary_name, vendor_name, amount_usdc_transferred, category_name, status, created_at, onchain_transaction_hash }] (transactions funded by this sponsor)
+Vendor Routes
+GET /api/vendors/smart-wallets
+
+
+Response: [{ id, wallet_address, network_id, is_platform_created }]
+POST /api/vendors/categories
+
+
+Request: { category_ids: [UUID] }
+Response: { message: "Vendor categories updated" }
+POST /api/vendors/transactions/initiate
+
+
+Request: { beneficiary_phone_number, amount_usdc, category_id, vendor_notes (optional) }
+Response: { pending_transaction_id, otp_message_to_display: "OTP sent to beneficiary's Telegram." }
+Logic:
+Find beneficiary.
+CRITICAL: Call SponsorshipValidationService to find a single, active sponsorship for this beneficiary & category with sufficient remaining_usdc. This service must also verify that the sponsoring WaaS wallet for that specific sponsorship has enough USDC and GAS for the transaction.
+If validation passes, store the selected_sponsorship_id in pending_transactions table.
+Generate OTP, hash it, store hash and expiry. Send OTP to beneficiary via Telegram.
+POST /api/vendors/transactions/confirm
+
+
+Request: { pending_transaction_id, otp }
+Response (Success): { id, status: 'initiated', amount_usdc_transferred, beneficiary_name, category_name, message: "Transaction initiated, awaiting on-chain confirmation." }
+Response (Error): { error_message }
+Logic:
+Find pending_transactions record. Verify OTP and expiry.
+CRITICAL RE-VERIFICATION: Re-check selected_sponsorship_id's remaining_usdc and its associated sponsor WaaS wallet's USDC & GAS balance (balances can change).
+If valid:
+Create executed_transactions record (status: 'initiated').
+Invoke TransactionService to perform the actual USDC transfer using CDP WaaS API from the sponsor's WaaS wallet to vendor's smart wallet.
+Update sponsorships.remaining_usdc (optimistically, or after on-chain confirmation).
+GET /api/vendors/transactions
+
+
+Response: [{ id, beneficiary_name, sponsor_name, amount_usdc_transferred, category_name, status, created_at, onchain_transaction_hash }] (transactions received by this vendor)
+POST /api/vendors/coinbase/offramp/initialize (Conceptual)
+
+
+Request: { amount_usdc, source_smart_wallet_address (vendor's wallet) }
+Response: { offramp_session_details }
+Beneficiary Routes (for Telegram Bot Backend)
+GET /api/beneficiaries/me (Authenticated by a secure bot token or beneficiary-specific token)
+
+
+Query: ?telegram_user_id=xxx (or other secure identifier)
+Response: { display_name, available_sponsorships: [{ sponsorship_id, sponsor_display_name, remaining_usdc, categories: [{id, name}] }] }
+POST /api/beneficiaries/register (If the beneficiary interacts with the bot first)
+
+
+Request: { phone_number_for_telegram, display_name (optional) }
+Response: { id, display_name, phone_number_for_telegram }
+Webhook Routes
+POST /api/webhooks/coinbase/onramp
+Logic: Handles status updates from Coinbase Onramp (e.g., successful USDC purchase). Updates sponsor's waas_wallets.usdc_balance.
+POST /api/webhooks/coinbase/wallets
+Logic: Handles WaaS transaction status updates from CDP (e.g., sponsor-to-vendor transfer confirmation). Updates executed_transactions.status, executed_transactions.onchain_transaction_hash, potentially waas_wallets.usdc_balance and waas_wallets.gas_balance after a send.
+POST /api/webhooks/telegram
+Logic: Receives messages from beneficiaries via Telegram. Parses commands (e.g., /balance, /start).
+Utility Routes
+GET /api/categories
+Response: [{ id, name, description }]
+B. Coinbase Developer Platform (CDP) API Integration
+Coinbase Onramp Service: (As per https://docs.cdp.coinbase.com/onramp/docs/welcome/)
+
+
+For sponsors to purchase USDC into their platform-managed WaaS wallet.
+Integrate via backend API /api/sponsors/coinbase/onramp/initialize.
+CDP Wallet as a Service (WaaS) API: (As per https://docs.cdp.coinbase.com/wallet-api/docs/quickstart and https://docs.cdp.coinbase.com/wallet-api/docs/smart-contract-interactions)
+
+
+Wallet Creation: POST /v1/wallets (or equivalent) to create sponsor WaaS wallets.
+Get Wallet Balances: GET /v1/wallets/{walletId}/addresses/{addressId}/balances (or similar) to fetch USDC and native gas token balances for sponsor WaaS wallets.
+Create Transaction (Send Funds): POST /v1/wallets/{sourceSponsorWaasWalletId}/addresses/{sourceSponsorWaasAddressId}/transactions (or equivalent). This is the key API for the direct transfer model. Your backend calls this to move USDC from the selected sponsor's WaaS wallet to the vendor's smart wallet.
+Payload needs: destination address (vendor's smart wallet), amount, token identifier (USDC), network.
+Get Transaction Details: GET /v1/transactions/{coinbaseTransactionId} to track transfer status.
+CDP Smart Wallet Management / Base SDKs: (As per https://docs.base.org/identity/smart-wallet/quickstart)
+
+
+For creating non-custodial smart wallets for vendors on Base if the platform provisions them. This might involve direct use of Base SDKs (e.g., ethers.js, viem with Base RPC).
+Coinbase Offramp Solutions (Conceptual):
+
+
+Investigate CDP or Coinbase Exchange APIs for enabling vendors to convert USDC from their smart wallets to fiat.
+
+4. Backend Services / Logic (Conceptual Modules)
+AuthService: Manages user signup/login (Supabase), role handling, and triggers post-signup wallet provisioning.
+WalletService:
+For Sponsors: Manages WaaS wallet creation (CDP), balance queries (USDC & gas via CDP), and onramp integration.
+For Vendors: Manages smart wallet creation/linking (CDP/Base SDKs).
+SponsorshipService: Handles creation, querying, and lifecycle management of sponsorships, including balance updates.
+SponsorshipValidationService: CRITICAL. Before initiating an OTP or a transaction, this service:
+Identifies a single eligible sponsorship record for the beneficiary, category, and amount.
+Fetches the associated waas_wallets record for the funding sponsor.
+Queries CDP Wallet API to get the current live USDC and native gas token balance for that specific sponsor's WaaS wallet.
+Returns success only if both the sponsorship record shows enough remaining_usdc AND the live WaaS wallet check confirms sufficient USDC and gas for the transfer.
+TransactionService:
+Orchestrates the vendor-initiated transaction flow:
+Calls SponsorshipValidationService.
+Generates and sends OTPs via NotificationService.
+Verifies OTPs.
+Calls SponsorshipValidationService again before actual transfer.
+Instructs CDP WaaS API to execute the USDC transfer from the specific sponsor's WaaS wallet.
+Updates database records based on transfer status (from webhooks or polling).
+NotificationService: Integrates with Telegram API (e.g., node-telegram-bot-api) to send messages (sponsorship alerts, OTPs, confirmations) to beneficiaries.
+WebhookHandlerService: Processes incoming webhooks from Coinbase (Onramp, Wallet API transaction updates) and Telegram (user messages).
+
+5. Frontend Pages (Next.js with Chakra UI)
+Shared:
+/ (Landing Page)
+/login
+/signup
+Sponsor Portal (/sponsor/*)
+/dashboard: Overview, WaaS wallet balance (USDC & Gas), Onramp initiation.
+/sponsorships/new: Create sponsorship form.
+/sponsorships: List/manage sponsorships.
+/transactions: View transactions funded.
+/profile: Manage profile.
+Vendor Portal (/vendor/*)
+/dashboard: Overview, smart wallet details, Offramp initiation (conceptual).
+/transactions/new: Form to initiate a transaction with a beneficiary (triggers OTP flow).
+/transactions: View received transactions.
+/profile: Manage business categories.
+
+6. Telegram Bot Interaction Flow (Beneficiary)
+Sponsorship Notification: Bot messages beneficiary about new funds and categories from a sponsor.
+Transaction OTP: Vendor initiates transaction -> Bot messages beneficiary with OTP and transaction details, requesting them to share OTP with vendor.
+Transaction Confirmation (Optional): Bot messages beneficiary upon successful payment.
+Balance Inquiry (e.g., /balance command): Bot replies with available funds per category based on active sponsorships.
+Help/Start (e.g., /start command): Bot provides basic usage instructions.
+
+7. Gas Management Strategy (Direct Transfer Model)
+This is the most significant challenge with the direct sponsor WaaS wallet to vendor transfer model. Each transfer requires gas (e.g., ETH on Base) to be paid from the specific sponsor's WaaS wallet.
+Problem: Non-crypto native sponsors cannot be expected to manage gas balances.
+Priority Investigation:
+CDP WaaS Gas Sponsoring: Does the CDP Wallet API allow the platform (as the WaaS admin) to sponsor/pay gas fees for transactions initiated from the WaaS wallets it manages, without requiring each wallet to hold native gas tokens? (e.g., a platform-level "gas tank").
+CDP WaaS Gas Abstraction: Does WaaS have any built-in mechanism to abstract gas payments for such platform-initiated transfers from managed wallets, perhaps by deducting an equivalent USDC fee or having a service fee that covers it?
+Fallback (Complex): Platform backend might need to programmatically send tiny amounts of gas tokens to sponsor WaaS wallets before initiating USDC transfers. This is operationally very difficult to manage (monitoring thousands of wallets, cost of dust transactions).
+Hackathon Assumption: (See section 8).
+
+8. Assumptions for Hackathon Scope
+Gas is Abstracted/Handled: For the hackathon, assume that either:
+Coinbase WaaS provides a mechanism for the platform to easily cover gas for sponsor WaaS wallet transactions without individual gas funding, OR
+Sponsor WaaS wallets are pre-funded with sufficient gas for testing the core flow.
+This allows focus on application logic rather than intricate gas logistics.
+Single Sponsorship Funds Single Transaction: Each vendor transaction is funded by one specific, identifiable sponsorship allocation from one sponsor. No aggregation from multiple sponsorships for one purchase.
+Happy Path Focus: Prioritize successful user flows. Extensive error handling for all edge cases may be simplified.
+Network: Development and testing on Base Sepolia (or another suitable testnet).
+Offramp Simplicity: Vendor offramp might be a conceptual UI element linking to Coinbase, not a fully integrated API flow, depending on time.
+Security: Basic security measures (input validation, Supabase RLS) will be implemented. Advanced penetration testing or comprehensive security audits are out of scope.
+
