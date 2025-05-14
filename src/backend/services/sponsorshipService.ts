@@ -159,6 +159,8 @@ export class SponsorshipService {
    */
   static async getActiveSponsorshipsForBeneficiary(beneficiaryId: string, categoryId?: string) {
     try {
+      console.log('Getting active sponsorships for beneficiary:', beneficiaryId);
+      
       // Get active sponsorships with remaining balance
       let query = supabase
         .from('sponsorships')
@@ -168,13 +170,19 @@ export class SponsorshipService {
         .gt('remaining_usdc', 0);
 
       // If expires_at is set, only get non-expired sponsorships
-      query = query.or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`);
+      const currentDate = new Date().toISOString();
+      query = query.or(`expires_at.is.null,expires_at.gt.${currentDate}`);
+      console.log('Querying sponsorships with expiry condition:', currentDate);
 
       const { data: sponsorships, error } = await query;
 
       if (error) {
+        console.error('Error fetching sponsorships:', error);
         throw new ApiError('Failed to fetch sponsorships', 500, error.message);
       }
+
+      console.log('Initial sponsorships found:', sponsorships?.length || 0);
+      console.log('Sponsorships data:', JSON.stringify(sponsorships, null, 2));
 
       if (!sponsorships || sponsorships.length === 0) {
         return [];
@@ -183,53 +191,74 @@ export class SponsorshipService {
       // If categoryId is provided, filter sponsorships that allow this category
       let filteredSponsorships = sponsorships;
       if (categoryId) {
+        console.log('Filtering sponsorships by category:', categoryId);
         const sponsorshipIds = sponsorships.map(s => s.id);
         
         // Get sponsorships that allow this category
-        const { data: allowedCategorySponsorships } = await supabase
+        const { data: allowedCategorySponsorships, error: categoryError } = await supabase
           .from('sponsorship_allowed_categories')
           .select('sponsorship_id')
           .eq('category_id', categoryId)
           .in('sponsorship_id', sponsorshipIds);
+
+        if (categoryError) {
+          console.error('Error fetching allowed categories:', categoryError);
+        }
         
         if (!allowedCategorySponsorships || allowedCategorySponsorships.length === 0) {
+          console.log('No sponsorships found for category:', categoryId);
           return [];
         }
         
         const validSponsorshipIds = allowedCategorySponsorships.map(acs => acs.sponsorship_id);
         filteredSponsorships = sponsorships.filter(s => validSponsorshipIds.includes(s.id));
+        console.log('Sponsorships after category filtering:', filteredSponsorships.length);
       }
 
       // Get sponsor details and categories for each sponsorship
+      console.log('Enriching sponsorships with sponsor and category details...');
       const enrichedSponsorships = await Promise.all(
         filteredSponsorships.map(async (sponsorship) => {
           // Get sponsor
-          const { data: sponsor } = await supabase
+          const { data: sponsor, error: sponsorError } = await supabase
             .from('users')
             .select('id, display_name, email')
             .eq('id', sponsorship.sponsor_user_id)
             .single();
 
+          if (sponsorError) {
+            console.error('Error fetching sponsor details:', sponsorError);
+          }
+
           // Get category IDs for this sponsorship
-          const { data: allowedCategories } = await supabase
+          const { data: allowedCategories, error: categoriesError } = await supabase
             .from('sponsorship_allowed_categories')
             .select('category_id')
             .eq('sponsorship_id', sponsorship.id);
 
+          if (categoriesError) {
+            console.error('Error fetching allowed categories:', categoriesError);
+          }
+
           let categories: Category[] = [];
           if (allowedCategories && allowedCategories.length > 0) {
             const categoryIds = allowedCategories.map(ac => ac.category_id);
+            console.log('Fetching categories for sponsorship:', sponsorship.id, 'Categories:', categoryIds);
             categories = await this.getCategoriesByIds(categoryIds);
           }
 
-          return {
+          const enrichedSponsorship = {
             ...sponsorship,
             sponsor,
             categories,
           };
+          console.log('Enriched sponsorship:', JSON.stringify(enrichedSponsorship, null, 2));
+
+          return enrichedSponsorship;
         })
       );
 
+      console.log('Total enriched sponsorships:', enrichedSponsorships.length);
       return enrichedSponsorships;
     } catch (error) {
       console.error('Error fetching beneficiary sponsorships:', error);

@@ -8,7 +8,7 @@ import {
 } from '../../common/types/database.types';
 import { SponsorshipService } from './sponsorshipService';
 import { WalletService } from './walletService';
-// import { TelegramService } from './telegramService';
+import { TelegramService } from './telegramService';
 // import { NotificationService } from './notificationService'; // For later telegram implementation
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
@@ -151,16 +151,32 @@ export class TransactionService {
         .eq('id', categoryId)
         .single();
 
-      // Instead of sending OTP via Telegram, return the OTP to be displayed in an alert
+      // Send OTP via Telegram
+      const otpSent = await TelegramService.sendOTP(
+        beneficiaryPhoneNumber,
+        otp,
+        {
+          amount: amountUsdc,
+          vendorName: vendorData?.display_name || 'Vendor',
+          category: categoryData?.name || 'Purchase'
+        }
+      );
+
+      if (!otpSent) {
+        console.warn('Failed to send OTP via Telegram. Falling back to display message.');
+      }
+
+      // Return transaction details with OTP display message as fallback
       const otpDisplayMessage = `OTP: ${otp}\nAmount: ${amountUsdc} USDC\nVendor: ${vendorData?.display_name || 'Vendor'}\nCategory: ${categoryData?.name || 'Purchase'}\nExpires in: ${this.OTP_EXPIRY_MINUTES} minutes`;
 
       return {
         pending_transaction_id: pendingTransaction.id,
         beneficiary_phone: beneficiaryPhoneNumber,
         amount_usdc: amountUsdc,
-        otp, // In production, we would remove this
-        otp_display_message: otpDisplayMessage, // Message to show in the alert
+        otp_sent_via_telegram: otpSent,
+        otp_display_message: otpDisplayMessage, // Fallback message if Telegram fails
         otp_expires_at: otpExpiresAt,
+        otp, // In development only, remove in production
       };
     } catch (error) {
       console.error('Error initiating transaction:', error);
@@ -343,23 +359,20 @@ export class TransactionService {
 
         // Send transaction confirmation notification via Telegram
         if (beneficiary) {
-          // Commented out for now as we're using browser alerts instead of Telegram
-          /*
+          // Send confirmation via Telegram
           await TelegramService.sendTransactionConfirmation(
             beneficiary.phone_number_for_telegram,
             executedTransaction.id,
             executedTransaction.amount_usdc_transferred,
             vendor?.display_name || 'Vendor',
-            category?.name || 'Purchase'
+            category?.name || 'Purchase',
+            transactionResult.coinbase_transaction_id
           );
-          */
-          // Can add browser alert logic here if needed
         }
 
         return {
-          ...executedTransaction,
-          coinbase_transaction_id: transactionResult.coinbase_transaction_id,
-          status: 'pending_confirmation',
+          transaction: executedTransaction,
+          message: 'Transaction confirmed and USDC transfer initiated'
         };
       } catch (error) {
         // Update executed transaction to reflect failure

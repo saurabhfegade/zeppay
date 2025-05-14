@@ -84,11 +84,7 @@ export default function TestTransaction() {
           {/* Content */}
           <div className="p-6">
             {!isLoggedIn ? (
-              <div className="space-y-6">
-                <div className={`p-3 mb-4 rounded-md ${status === 'error' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
-                  <p>{message || 'Please log in to continue'}</p>
-                </div>
-                
+              <div className="space-y-6">                
                 <div className="space-y-4">
                   <div>
                     <label className="block mb-1 font-medium text-gray-700">Email:</label>
