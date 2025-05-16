@@ -43,15 +43,20 @@ import {
   useSteps,
   VStack,
   HStack,
+  Divider,
+  Badge,
+  Icon,
 } from '@chakra-ui/react';
 import React, { useState } from 'react';
 import axios, { AxiosError } from 'axios';
+import { FundButton } from '@coinbase/onchainkit/fund';
 import { useGetSponsorWaasWalletQuery } from '@/frontend/hooks/queries/use-get-sponsor-waas-wallet-query';
 import { useGetSponsorBeneficiariesQuery } from '@/frontend/hooks/queries/use-get-sponsor-beneficiaries-query';
 import { useGetCategoriesQuery } from '@/frontend/hooks/queries/use-get-categories-query';
 import { useCreateSponsorshipMutation, CreateSponsorshipPayload } from '@/frontend/hooks/mutations/use-create-sponsorship-mutation';
 import { Beneficiary } from '@/common/types/api';
 import { Category } from '@/common/types/database.types';
+
 
 // Define a type for common API error responses
 interface ApiErrorResponse {
@@ -189,6 +194,18 @@ const SponsorDashboardPage = () => {
     });
   };
 
+  const getOnrampUrl = (walletAddress: string) => {
+    const params = new URLSearchParams({
+      appId: process.env.NEXT_PUBLIC_CDP_PROJECT_ID || '',
+      addresses: JSON.stringify({
+        [walletAddress]: ['base']
+      }),
+      assets: JSON.stringify(['USDC']),
+      defaultNetwork: 'base'
+    });
+    return `https://pay.coinbase.com/buy/select-asset?${params.toString()}`;
+  };
+
   return (
     <Box p={6}>
       <HStack justifyContent="space-between" mb={6}>
@@ -235,9 +252,27 @@ const SponsorDashboardPage = () => {
             <Text mt={1} color="gray.500" fontSize="sm">
               Last updated: {new Date(walletData.last_balance_sync_at).toLocaleString()}
             </Text>
-             <Text mt={1} color="gray.600">
+            <Text mt={1} color="gray.600">
               Gas Balance (ETH/Native): <Text as="span" fontWeight="bold">{walletData.gas_balance}</Text>
             </Text>
+            <Divider my={4} />
+            <Box 
+              bg="blue.50" 
+              p={4} 
+              borderRadius="md"
+            >
+              <Text fontSize="lg" fontWeight="semibold" mb={3}>
+                Add Funds to Your Wallet
+              </Text>
+              <Text mb={4} color="gray.600">
+                Add USDC to your wallet using credit card, bank transfer, or your Coinbase account.
+              </Text>
+              <FundButton 
+                text="Add USDC via Coinbase"
+                openIn="popup"
+                fundingUrl={getOnrampUrl(walletData.wallet_address)}
+              />
+            </Box>
           </Box>
         )}
         {!walletData && !isLoadingWallet && !isErrorWallet && (
