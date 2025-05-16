@@ -22,7 +22,7 @@ apiClient.interceptors.request.use(
         config.headers.Authorization = `Bearer ${token}`;
       }
     } else {
-      // console.warn('[Axios Interceptor] No token found in Zustand store for:', config.url);
+      console.warn('[Axios Interceptor] No token found in Zustand store for:', config.url);
     }
     return config;
   },

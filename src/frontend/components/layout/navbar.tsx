@@ -18,7 +18,7 @@ import {
 import { HamburgerIcon, CloseIcon, ChevronDownIcon } from '@chakra-ui/icons';
 import { useAuthStore, AuthState } from '../../store/auth-store';
 import { useLogoutMutation } from '../../hooks/mutations/use-logout-mutation';
-
+import NextLink from 'next/link';
 interface NavItem {
   label: string;
   href: string;
@@ -47,6 +47,7 @@ const NavLink = ({ label, href }: { label: string; href: string }) => {
 
   return (
     <Link
+      as={NextLink}
       href={href}
       px={2}
       py={1}
@@ -98,7 +99,7 @@ export const Navbar = () => {
           variant="ghost"
         />
         <HStack spacing={8} alignItems={'center'}>
-          <Link href="/" _hover={{ textDecoration: 'none' }}>
+          <Link as={NextLink} href="/" _hover={{ textDecoration: 'none' }}>
             <Text fontSize="xl" fontWeight="bold" color={brandColor}>
               ZepPay
             </Text>
@@ -112,10 +113,10 @@ export const Navbar = () => {
         <Flex alignItems={'center'}>
           {!isAuthenticated ? (
             <HStack spacing={2}>
-              <Link href="/login">
+              <Link as={NextLink} href="/login">
                 <Button variant="ghost">Login</Button>
               </Link>
-              <Link href="/signup">
+              <Link as={NextLink} href="/signup">
                 <Button colorScheme="blue">Sign Up</Button>
               </Link>
             </HStack>

@@ -16,12 +16,22 @@ import {
 } from '@chakra-ui/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ME_QUERY_KEY } from '@/frontend/hooks/queries/use-get-me-query';
+import { useAuthStore } from '@/frontend/store/auth-store';
 
 const LoginPage: NextPage = () => {
   const queryClient = useQueryClient();
   const { mutate: login, isPending: isLoggingIn } = useLoginMutation({
     onSuccess: async (data) => {
       console.log('Login successful:', data);
+
+      if (data.user && data.session && data.session.access_token) {
+        useAuthStore.getState().setUser(data.user, data.session.access_token);
+      } else {
+        console.error('Login success but token or user is missing in the response data:', data);
+        setErrors(prev => ({ ...prev, form: 'Login successful, but session could not be established.' }));
+        return; 
+      }
+      
       await queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
     },
     onError: (error) => {
