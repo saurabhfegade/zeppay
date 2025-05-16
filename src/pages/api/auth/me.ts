@@ -1,5 +1,5 @@
 import { NextApiResponse } from 'next';
-import { AuthService } from '../../../backend/services/authService';
+// import { AuthService } from '../../../backend/services/authService'; // Removed unused import
 import { WalletService } from '../../../backend/services/walletService';
 import { withAuth, AuthenticatedRequest } from '../../../backend/middlewares/auth.middleware';
 import { ApiError } from '../../../backend/lib/apiError';
