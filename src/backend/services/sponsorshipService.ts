@@ -1,9 +1,23 @@
 import { supabase } from '../lib/db';
 import { ApiError } from '../lib/apiError';
-import { Beneficiary, Category, Sponsorship, SponsorshipAllowedCategory, SponsorshipStatus } from '../../common/types/database.types';
+import { Beneficiary, Category, Sponsorship, SponsorshipStatus } from '../../common/types/database.types';
 import { WalletService } from './walletService';
 import { TelegramService } from './telegramService';
 import { v4 as uuidv4 } from 'uuid';
+
+// Interface for the getEligibleSponsorshipsForVendor method
+export interface EligibleSponsorshipForVendor {
+  sponsorship_id: string;
+  sponsorship_notes?: string | null;
+  sponsorship_expires_at?: string | null;
+  beneficiary: Pick<Beneficiary, 'id' | 'display_name' | 'phone_number_for_telegram'>;
+  eligible_allocations: Array<{
+    sponsorship_allowed_category_id: string;
+    category_id: string;
+    category_name: string;
+    available_usdc: number;
+  }>;
+}
 
 export class SponsorshipService {
   /**
@@ -378,6 +392,115 @@ export class SponsorshipService {
       }
       throw new ApiError('Failed to cancel sponsorship', 500, error instanceof Error ? error.message : undefined);
     }
+  }
+
+  /**
+   * Gets sponsorships eligible for a vendor to accept payment from.
+   * Filters by vendor's categories, active status, and available funds.
+   * @param vendorId The ID of the vendor.
+   * @returns Array of eligible sponsorships with beneficiary and category allocation details.
+   */
+  public static async getEligibleSponsorshipsForVendor(vendorId: string): Promise<EligibleSponsorshipForVendor[]> {
+    const { data: vendorCategories, error: vendorCategoriesError } = await supabase
+      .from('vendor_categories')
+      .select('category_id')
+      .eq('vendor_id', vendorId);
+
+    if (vendorCategoriesError) {
+      console.error('Error fetching vendor categories:', vendorCategoriesError);
+      throw new ApiError(`Could not fetch vendor categories. ${vendorCategoriesError.message}`, 500, vendorCategoriesError.details);
+    }
+    if (!vendorCategories || vendorCategories.length === 0) {
+      return []; 
+    }
+    const vendorCategoryIds = vendorCategories.map((vc: {category_id: string}) => vc.category_id);
+
+    const now = new Date().toISOString();
+    const selectQuery = `
+      id,
+      notes,
+      expires_at,
+      remaining_usdc,
+      beneficiaries!beneficiary_id ( 
+        id,
+        display_name,
+        phone_number_for_telegram
+      ),
+      sponsorship_allowed_categories!inner (
+        category_id,
+        categories!inner (name)
+      )
+    `;
+
+    const { data: sponsorshipsData, error: sponsorshipsError } = await supabase
+      .from('sponsorships')
+      .select(selectQuery)
+      .eq('status', 'active')
+      .in('sponsorship_allowed_categories.category_id', vendorCategoryIds)
+      .or(`expires_at.is.null,expires_at.gt.${now}`);
+      
+    if (sponsorshipsError) {
+      console.error('Error fetching eligible sponsorships:', sponsorshipsError);
+      throw new ApiError(`Could not fetch eligible sponsorships. ${sponsorshipsError.message}`, 500, sponsorshipsError.details);
+    }
+    
+    if (!sponsorshipsData) {
+      return [];
+    }
+    
+    // We cast to `unknown` first then to our more specific `QueriedSponsorship[]` for processing.
+    
+    // Refined type for items from Supabase query based on selectQuery
+    type QueriedSponsorship = {
+        id: string;
+        notes: string | null;
+        expires_at: string | null;
+        remaining_usdc: number;
+        beneficiaries: Pick<Beneficiary, 'id' | 'display_name' | 'phone_number_for_telegram'> | null; 
+        sponsorship_allowed_categories: Array<{
+            category_id: string;
+            categories: { name: string } | null; 
+        }>;
+    };
+
+    const results: EligibleSponsorshipForVendor[] = [];
+
+    for (const s of (sponsorshipsData as unknown as QueriedSponsorship[])) {
+      if (!s.beneficiaries) { 
+        continue; 
+      }
+      if (s.remaining_usdc <= 0) {
+          continue;
+      }
+      
+      const typedBeneficiary = s.beneficiaries;
+
+      const allocations = s.sponsorship_allowed_categories
+        .map(sac => {
+          const categoryName = sac.categories?.name || 'Unknown Category';
+          const availableForThisCategoryContext = s.remaining_usdc;
+          
+          return {
+            sponsorship_allowed_category_id: sac.category_id, 
+            category_id: sac.category_id,
+            category_name: categoryName,
+            available_usdc: availableForThisCategoryContext,
+          };
+        })
+        .filter(alloc => vendorCategoryIds.includes(alloc.category_id));
+
+      if (allocations.length > 0) {
+        results.push({
+          sponsorship_id: s.id,
+          beneficiary: typedBeneficiary,
+          eligible_allocations: allocations,
+          sponsorship_notes: s.notes,
+          sponsorship_expires_at: s.expires_at,
+        });
+      }
+    }
+
+    return results;
   }
 
   // Helper Methods
