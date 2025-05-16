@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NextPage } from 'next';
-// import { useRouter } from 'next/router'; // Removed as it's no longer used
+import { useRouter } from 'next/router';
 import { useSignUpMutation } from '@/frontend/hooks';
 import { UserRole } from '@/common/types/auth.d';
 import {
@@ -16,18 +16,28 @@ import {
   FormLabel,
   FormErrorMessage,
   Link,
+  useToast,
 } from '@chakra-ui/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ME_QUERY_KEY } from '@/frontend/hooks/queries/use-get-me-query';
 
 const SignUpPage: NextPage = () => {
-  // const router = useRouter(); // Removed
   const queryClient = useQueryClient();
+  const toast = useToast();
+  const router = useRouter();
 
   const { mutate: signUp, isPending: isSigningUp } = useSignUpMutation({
     onSuccess: (data) => {
       console.log('Account created:', data);
       queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
+      toast({
+        title: 'Account created.',
+        description: "Your account has been successfully created. Please log in.",
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+      });
+      router.push('/login');
     },
     onError: (error) => {
       console.error('Sign up failed:', error.message);

@@ -1,6 +1,6 @@
 import { supabase } from '../lib/db';
 import { ApiError } from '../lib/apiError';
-import { Category, VendorCategory } from '../../common/types/database.types';
+import { Category } from '../../common/types/database.types';
 import { v4 as uuidv4 } from 'uuid';
 
 export class CategoryService {

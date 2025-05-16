@@ -1,30 +1,17 @@
-import { ChakraProvider } from '@chakra-ui/react';
 import type { AppProps } from 'next/app';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { theme } from '@/frontend/styles/theme'; // Changed import from system to theme
-import AppLayout from '@/frontend/components/layout/app-layout'; // Import AppLayout
+import { Providers } from '@/frontend/components/Providers'; // Assuming this wraps Chakra, Query, and Wagmi
+import AppLayout from '@/frontend/components/layout/app-layout';
 
-// Create a client
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      // Global default query options can go here
-      // staleTime: 1 * 60 * 1000, // 1 minute
-    },
-  },
-});
+// If QueryClient is created and managed within Providers, remove it from here.
+// Otherwise, if Providers expects queryClient as a prop, adjust accordingly.
 
 function MyApp({ Component, pageProps }: AppProps) {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ChakraProvider theme={theme}>
-        <AppLayout>
-          <Component {...pageProps} />
-        </AppLayout>
-      </ChakraProvider>
-      <ReactQueryDevtools initialIsOpen={false} />
-    </QueryClientProvider>
+    <Providers> {/* This should now include WagmiProvider, ChakraProvider, and QueryClientProvider */}
+      <AppLayout>
+        <Component {...pageProps} />
+      </AppLayout>
+    </Providers>
   );
 }
 

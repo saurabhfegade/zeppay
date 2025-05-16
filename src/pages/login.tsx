@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { NextPage } from 'next';
+import { useRouter } from 'next/router';
 import { useLoginMutation } from '@/frontend/hooks';
 import {
   Box,
@@ -20,6 +21,8 @@ import { useAuthStore } from '@/frontend/store/auth-store';
 
 const LoginPage: NextPage = () => {
   const queryClient = useQueryClient();
+  const router = useRouter();
+
   const { mutate: login, isPending: isLoggingIn } = useLoginMutation({
     onSuccess: async (data) => {
       console.log('Login successful:', data);
@@ -33,6 +36,14 @@ const LoginPage: NextPage = () => {
       }
       
       await queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
+
+      if (data.user.role === 'vendor') {
+        router.push('/vendor/dashboard');
+      } else if (data.user.role === 'sponsor') {
+        router.push('/sponsor/dashboard');
+      } else {
+        router.push('/'); 
+      }
     },
     onError: (error) => {
       console.error('Login failed:', error.message);

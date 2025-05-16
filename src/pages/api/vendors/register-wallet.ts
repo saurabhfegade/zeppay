@@ -1,109 +1,56 @@
 import { NextApiResponse } from 'next';
 import { z } from 'zod';
-import { withAuth, AuthenticatedRequest } from '../../../backend/middlewares/auth.middleware';
-import { validateRequestBody } from '../../../backend/validation/requestValidation';
-import { ApiError } from '../../../backend/lib/apiError';
-import { supabase } from '../../../backend/lib/db';
-import { v4 as uuidv4 } from 'uuid';
+import { withAuth, AuthenticatedRequest } from '@/backend/middlewares/auth.middleware';
+import { handleError } from '@/backend/lib/error-handler';
+import { WalletService } from '@/backend/services/walletService';
+import { ApiError } from '@/backend/lib/apiError';
+import { SmartWalletService } from '@/backend/services/smartWalletService';
 
-// Validate request body using Zod
-const WalletRegistrationSchema = z.object({
-  wallet_address: z.string().startsWith('0x'),
+const RegisterWalletSchema = z.object({
+  wallet_address: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid wallet address format'),
+  network_id: z.string().optional(), // e.g., 'base-sepolia'
 });
 
-type WalletRegistrationRequest = z.infer<typeof WalletRegistrationSchema>;
+type RegisterWalletRequest = z.infer<typeof RegisterWalletSchema>;
 
-async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
-  // Only accept POST requests
+async function handler(req: AuthenticatedRequest, res: NextApiResponse): Promise<void> {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  // Ensure user is authenticated and is a vendor
-  if (!req.user) {
-    return res.status(401).json({ error: 'Authentication required' });
-  }
-
-  if (req.user.role !== 'vendor') {
-    return res.status(403).json({ error: 'Only vendors can access this endpoint' });
+    res.setHeader('Allow', ['POST']);
+    res.status(405).end(`Method ${req.method} Not Allowed`);
+    return;
   }
 
   try {
-    // Validate request body
-    const data = await validateRequestBody<WalletRegistrationRequest>(WalletRegistrationSchema, req, res);
-    if (!data) return; // Response already sent by validateRequestBody
-
-    // Check if vendor already has a wallet
-    const { data: existingWallet } = await supabase
-      .from('smart_wallets')
-      .select('id, wallet_address')
-      .eq('user_id', req.user.id)
-      .single();
-
-    if (existingWallet) {
-      // Update existing wallet if it's different
-      if (existingWallet.wallet_address !== data.wallet_address) {
-        const { data: updatedWallet, error } = await supabase
-          .from('smart_wallets')
-          .update({
-            wallet_address: data.wallet_address,
-            updated_at: new Date(),
-          })
-          .eq('id', existingWallet.id)
-          .select()
-          .single();
-
-        if (error) {
-          throw new ApiError('Failed to update wallet', 500, error.message);
-        }
-
-        return res.status(200).json({
-          message: 'Wallet address updated successfully',
-          wallet: updatedWallet,
-        });
-      }
-
-      return res.status(200).json({
-        message: 'Wallet address already registered',
-        wallet: existingWallet,
-      });
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ message: 'Authentication required and user ID missing.' });
+      return;
     }
 
-    // Create new wallet record
-    const walletData = {
-      id: uuidv4(),
-      user_id: req.user.id,
-      wallet_address: data.wallet_address,
-      network_id: 'base-sepolia', // Default to Sepolia testnet
-      is_platform_created: false, // User created this wallet
-      created_at: new Date(),
-      updated_at: new Date(),
-    };
-
-    const { data: newWallet, error } = await supabase
-      .from('smart_wallets')
-      .insert(walletData)
-      .select()
-      .single();
-
-    if (error) {
-      throw new ApiError('Failed to register wallet', 500, error.message);
+    const validationResult = RegisterWalletSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      res.status(400).json({ message: 'Invalid request body', errors: validationResult.error.flatten().fieldErrors });
+      return;
     }
 
-    return res.status(201).json({
-      message: 'Wallet registered successfully',
-      wallet: newWallet,
-    });
+    const { wallet_address, network_id } = validationResult.data as RegisterWalletRequest;
+
+    // Use the network_id from request or default from WalletService
+    const finalNetworkId = network_id || WalletService.NETWORK_ID;
+
+    const newSmartWallet = await SmartWalletService.registerVendorSmartWallet(userId, wallet_address, finalNetworkId);
+    res.status(201).json(newSmartWallet);
+    return;
+
   } catch (error) {
-    console.error('Error in register wallet API route:', error);
-    
-    if (error instanceof ApiError) {
-      return res.status(error.statusCode).json({ error: error.message, details: error.details });
+    if (error instanceof ApiError && error.statusCode === 409) {
+        // Specific handling for 409 (Conflict) errors from WalletService
+        res.status(409).json({ message: error.message, details: error.details });
+        return;
     }
-    
-    return res.status(500).json({ error: 'Internal server error' });
+    handleError(error, res);
+    return;
   }
 }
 
-// Apply the auth middleware with vendor role requirement
 export default withAuth(handler, ['vendor']); 

@@ -1,4 +1,4 @@
-import React, { ReactNode, useEffect, useState } from 'react';
+import React, { ReactNode, useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Flex,
@@ -15,6 +15,9 @@ import { Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { ROUTES } from '../../../common/constants/routes';
 import { Navbar } from './navbar';
 import { useAuthStore, User as AppUser } from '../../store/auth-store';
+import { useGetVendorWalletStatusQuery } from '@/frontend/hooks/queries/use-get-vendor-wallet-status-query';
+import { useVendorSetupStore } from '@/frontend/store/vendor-setup-store';
+import { SmartWalletSetupModal } from '@/frontend/components/vendor/smart-wallet-setup-modal';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -28,6 +31,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const storeSetUser = useAuthStore((state) => state.setUser);
   const storeLogout = useAuthStore((state) => state.logout);
   const storeSetIsLoading = useAuthStore((state) => state.setIsLoading);
+  const appUser = useAuthStore((state) => state.user);
+
+  const hasVendorWallet = useVendorSetupStore((state) => state.hasWallet);
+  const isCheckingVendorWalletStatus = useVendorSetupStore((state) => state.isCheckingWalletStatus);
 
   useEffect(() => {
     storeSetIsLoading(loadingAuth);
@@ -39,6 +46,13 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     isError: isErrorUser,
     error: getMeError,
   } = useGetMeQuery({ enabled: !!supabaseSession?.access_token });
+
+  // Memoize the options for useGetVendorWalletStatusQuery
+  const vendorWalletStatusQueryOptions = useMemo(() => ({
+    enabled: appUser?.role === 'vendor' && !!appUser && !!supabaseSession?.access_token,
+  }), [appUser, supabaseSession]);
+
+  useGetVendorWalletStatusQuery(vendorWalletStatusQueryOptions);
 
   useEffect(() => {
     if (userProfileData && supabaseSession?.user) {
@@ -103,7 +117,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
                 storeLogout();
              }
         }
-        if (!newSession && event !== 'SIGNED_OUT') {
+        if (!newSession && event !== 'SIGNED_OUT' && event !== 'INITIAL_SESSION') {
             storeLogout();
         }
         if (newSession || event === 'SIGNED_OUT' || (event === 'INITIAL_SESSION' && !newSession)) {
@@ -117,7 +131,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     };
   }, [storeSetUser, storeLogout, storeSetIsLoading]);
 
-  const publicPaths = ['/login', '/signup', '/'];
+  const publicPaths = [ROUTES.LOGIN, ROUTES.SIGNUP, '/'];
   const isPublicPage = publicPaths.includes(router.pathname);
 
   if (loadingAuth && !isPublicPage) {
@@ -158,24 +172,30 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     );
   }
   
-  if (userProfileData && !isLoadingUser && (router.pathname === ROUTES.LOGIN || router.pathname === ROUTES.SIGNUP)) {
+  if (appUser && !isLoadingUser && (router.pathname === ROUTES.LOGIN || router.pathname === ROUTES.SIGNUP)) {
     if (typeof window !== 'undefined') {
-        const dashboardPath = userProfileData.role === 'sponsor' ? ROUTES.SPONSOR_DASHBOARD : ROUTES.VENDOR_DASHBOARD;
+        const dashboardPath = appUser.role === 'sponsor' ? ROUTES.SPONSOR_DASHBOARD : ROUTES.VENDOR_DASHBOARD;
         router.push(dashboardPath);
     }
-    return (
-        <Flex justify="center" align="center" height="100vh">
-          <Spinner size="xl" />
-        </Flex>
-      );
+    return <Flex justify="center" align="center" height="100vh"><Spinner size="xl" /></Flex>;
   }
 
-  const showNavbar = isPublicPage || (userProfileData && supabaseSession && !isLoadingUser);
-  const canRenderChildren = isPublicPage || (userProfileData && supabaseSession && !isLoadingUser);
+  const baseRenderCondition = !!(appUser && !isLoadingUser);
+  const showNavbar = isPublicPage || baseRenderCondition;
+  let canRenderChildren: boolean = isPublicPage || baseRenderCondition;
+
+  if (appUser?.role === 'vendor' && !isPublicPage) {
+    if (isCheckingVendorWalletStatus) {
+      canRenderChildren = false;
+    } else if (hasVendorWallet === false) {
+      canRenderChildren = false;
+    }
+  }
 
   return (
     <Box>
       {showNavbar && <Navbar />}
+      {appUser?.role === 'vendor' && <SmartWalletSetupModal />}
       <Container maxW="container.xl" py={8} as="main">
         {canRenderChildren ? children : (
           !isPublicPage && <Flex justify="center" align="center" height="calc(100vh - 128px)"><Spinner size="xl" /></Flex>
