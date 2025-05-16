@@ -28,7 +28,22 @@ const LoginPage: NextPage = () => {
       console.log('Login successful:', data);
 
       if (data.user && data.session && data.session.access_token) {
-        useAuthStore.getState().setUser(data.user, data.session.access_token);
+        const supabaseUser = data.user;
+        const appRole = supabaseUser.user_metadata?.role as string || supabaseUser.role;
+        const displayName = supabaseUser.user_metadata?.display_name as string || '';
+
+        // Construct user object for the auth store, ensuring the application role is at the top level.
+        // This structure should align with what AppLayout expects and how AppUser is defined.
+        const userForStore = {
+          ...supabaseUser,
+          role: appRole,
+          display_name: displayName,
+          // Explicitly map other fields if AppUser type in auth-store is more specific
+          // or doesn't perfectly align with SupabaseUser + overrides.
+          // For now, this covers the critical 'role' and 'display_name'.
+        };
+        
+        useAuthStore.getState().setUser(userForStore, data.session.access_token);
       } else {
         console.error('Login success but token or user is missing in the response data:', data);
         setErrors(prev => ({ ...prev, form: 'Login successful, but session could not be established.' }));
@@ -37,9 +52,11 @@ const LoginPage: NextPage = () => {
       
       await queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
 
-      if (data.user.role === 'vendor') {
+      // Use the application role from user_metadata for redirection
+      const redirectRole = data.user.user_metadata?.role || data.user.role;
+      if (redirectRole === 'vendor') {
         router.push('/vendor/dashboard');
-      } else if (data.user.role === 'sponsor') {
+      } else if (redirectRole === 'sponsor') {
         router.push('/sponsor/dashboard');
       } else {
         router.push('/'); 
