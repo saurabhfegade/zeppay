@@ -306,6 +306,7 @@ function SmartWalletTest() {
         phone_number: '+1' + Math.floor(Math.random() * 9000000000 + 1000000000)
       });
       
+      console.log('Vendor creation response:', response.data);
       setMessage('Vendor account created! You can now log in.');
       setStatus('vendor-created');
     } catch (err) {
@@ -397,6 +398,7 @@ function SmartWalletTest() {
         { headers: { Authorization: `Bearer ${jwt}` } }
       );
       
+      console.log('Wallet registration response:', response.data);
       setStatus('wallet-registered');
       setMessage('Smart Wallet registered successfully with backend!');
     } catch (err) {
@@ -423,6 +425,7 @@ function SmartWalletTest() {
         { headers: { Authorization: `Bearer ${jwt}` } }
       );
       
+      console.log('Assign categories response:', response.data);
       setStatus('ready');
       setMessage('Categories assigned! Vendor setup complete and ready for testing.');
     } catch (err) {

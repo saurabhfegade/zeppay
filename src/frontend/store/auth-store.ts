@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { User as SupabaseUser } from '@supabase/supabase-js';
+import { useVendorProfileStore } from './vendor-profile-store'; // Import vendor store
 
 // Define your extended user type if you have one (e.g., with role)
 export interface User extends SupabaseUser {
@@ -45,6 +46,8 @@ export const useAuthStore = create<AuthState>()(
           sessionToken: null,
           isLoading: false,
         });
+        // Clear vendor-specific profile data on logout
+        useVendorProfileStore.getState().clearProfile();
         // Clear any other persisted user-related data if necessary
       },
       setIsLoading: (loading) => set({ isLoading: loading }),
