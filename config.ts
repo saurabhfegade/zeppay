@@ -1,3 +1,4 @@
+export const ENVIRONMENT = process.env.NEXT_PUBLIC_ENVIRONMENT;
 export const DATABASE_URL = process.env.DATABASE_URL;
 export const NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 export const NEXT_PUBLIC_SUPABASE_ANON_KEY =
@@ -12,7 +13,8 @@ export const CDP_WALLET_SECRET = process.env.CDP_WALLET_SECRET; // Non-public
 
 export const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN; // Non-public
 
-export const BLOCKCHAIN_NETWORK_ID = process.env.BLOCKCHAIN_NETWORK_ID;
+export const BLOCKCHAIN_NETWORK_ID =
+  process.env.NEXT_PUBLIC_BLOCKCHAIN_NETWORK_ID;
 export const BLOCKCHAIN_RPC_URL = process.env.BLOCKCHAIN_RPC_URL;
 
 export const NEXT_PUBLIC_APP_URL = process.env.NEXT_PUBLIC_APP_URL;

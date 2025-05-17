@@ -1,5 +1,5 @@
 import { CdpClient } from "@coinbase/cdp-sdk";
-import { BLOCKCHAIN_NETWORK_ID } from "config";
+import { BLOCKCHAIN_NETWORK_ID, ENVIRONMENT } from "config";
 import {
   createPublicClient,
   http,
@@ -8,7 +8,7 @@ import {
   formatUnits,
   encodeFunctionData,
 } from "viem";
-import { baseSepolia } from "viem/chains";
+import { baseSepolia, base } from "viem/chains";
 
 // Define types for our wallet service to use
 export interface CoinbaseWalletResponse {
@@ -32,12 +32,19 @@ export interface CoinbaseTransactionResponse {
 type CdpNetwork = "base" | "base-sepolia";
 
 // Base Sepolia USDC contract address
-const USDC_CONTRACT_ADDRESS = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+const USDC_CONTRACT_ADDRESS =
+  ENVIRONMENT === "testnet"
+    ? "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+    : "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 
 // Create a public client for reading from the blockchain
 const publicClient = createPublicClient({
-  chain: baseSepolia,
-  transport: http("https://sepolia.base.org"),
+  chain: ENVIRONMENT === "testnet" ? baseSepolia : base,
+  transport: http(
+    ENVIRONMENT === "testnet"
+      ? "https://sepolia.base.org"
+      : "https://mainnet.base.org",
+  ),
 });
 
 // ERC20 ABI fragment for balance queries
@@ -138,7 +145,6 @@ export class CoinbaseWaaSClient {
             // Don't throw on faucet error - it's not critical
           }
         }
-
         return {
           // Use address as unique ID
           walletId: account.address,
