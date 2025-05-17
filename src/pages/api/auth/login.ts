@@ -28,7 +28,7 @@ export default async function handler(
     // Create standard Supabase client for authentication
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-      process.env.SUPABASE_ANON_KEY || "",
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
     );
 
     // Attempt to sign in
@@ -40,12 +40,10 @@ export default async function handler(
 
     if (authError || !authData.user) {
       console.error("Supabase auth signin error:", authError);
-      return res
-        .status(401)
-        .json({
-          error: "Invalid email or password",
-          details: authError?.message,
-        });
+      return res.status(401).json({
+        error: "Invalid email or password",
+        details: authError?.message,
+      });
     }
 
     // First attempt to get user data with the authenticated client
