@@ -3,12 +3,13 @@ import { ApiError } from "../lib/apiError";
 import { SmartWallet, WaasWallet } from "../../common/types/database.types";
 import { v4 as uuidv4 } from "uuid";
 import { coinbaseClient } from "../lib/coinbase";
+import { BLOCKCHAIN_NETWORK_ID } from "../../../config"; // Import from config
 
 // Removed unused coinbaseWalletApi mock object
 // Removed baseSmartWalletApi as vendor smart wallet creation is now external
 
 export class WalletService {
-  static NETWORK_ID = "base-sepolia"; // Network ID for testnet
+  static NETWORK_ID = BLOCKCHAIN_NETWORK_ID || "base-sepolia"; // Use the network from the response, or default to our configured network ID
 
   /**
    * Creates a WaaS wallet for a sponsor using Coinbase Developer Platform
@@ -81,7 +82,7 @@ export class WalletService {
    *
    * @param userId Vendor's user ID
    * @param walletAddress The address of the smart wallet connected by the vendor
-   * @param networkId The network ID of the wallet (defaults to base-sepolia)
+   * @param networkId The network ID of the wallet (defaults to the configured BLOCKCHAIN_NETWORK_ID)
    * @returns The registered smart wallet
    */
   static async registerVendorSmartWallet(
