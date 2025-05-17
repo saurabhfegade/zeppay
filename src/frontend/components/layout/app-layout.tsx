@@ -1,4 +1,4 @@
-import React, { ReactNode, useEffect, useMemo, useState } from 'react';
+import React, { ReactNode, useEffect, useMemo, useState } from "react";
 import {
   Box,
   Flex,
@@ -6,18 +6,19 @@ import {
   Container,
   Spinner,
   Text,
-} from '@chakra-ui/react';
-import { useGetMeQuery } from '../../hooks/queries/use-get-me-query';
-import { useLogoutMutation } from '../../hooks/mutations/use-logout-mutation';
-import { useRouter } from 'next/router';
-import { supabase } from '../../lib/supabase-client';
-import { Session, AuthChangeEvent } from '@supabase/supabase-js';
-import { ROUTES } from '../../../common/constants/routes';
-import { Navbar } from './navbar';
-import { useAuthStore, User as AppUser } from '../../store/auth-store';
-import { useGetVendorWalletStatusQuery } from '@/frontend/hooks/queries/use-get-vendor-wallet-status-query';
-import { useVendorSetupStore } from '@/frontend/store/vendor-setup-store';
-import { SmartWalletSetupModal } from '@/frontend/components/vendor/smart-wallet-setup-modal';
+  HStack,
+} from "@chakra-ui/react";
+import { useGetMeQuery } from "../../hooks/queries/use-get-me-query";
+import { useLogoutMutation } from "../../hooks/mutations/use-logout-mutation";
+import { useRouter } from "next/router";
+import { supabase } from "../../lib/supabase-client";
+import { Session, AuthChangeEvent } from "@supabase/supabase-js";
+import { ROUTES } from "../../../common/constants/routes";
+import { Navbar } from "./navbar";
+import { useAuthStore, User as AppUser } from "../../store/auth-store";
+import { useGetVendorWalletStatusQuery } from "@/frontend/hooks/queries/use-get-vendor-wallet-status-query";
+import { useVendorSetupStore } from "@/frontend/store/vendor-setup-store";
+import { SmartWalletSetupModal } from "@/frontend/components/vendor/smart-wallet-setup-modal";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -34,7 +35,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const appUser = useAuthStore((state) => state.user);
 
   const hasVendorWallet = useVendorSetupStore((state) => state.hasWallet);
-  const isCheckingVendorWalletStatus = useVendorSetupStore((state) => state.isCheckingWalletStatus);
+  const isCheckingVendorWalletStatus = useVendorSetupStore(
+    (state) => state.isCheckingWalletStatus,
+  );
 
   useEffect(() => {
     storeSetIsLoading(loadingAuth);
@@ -48,9 +51,15 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   } = useGetMeQuery({ enabled: !!supabaseSession?.access_token });
 
   // Memoize the options for useGetVendorWalletStatusQuery
-  const vendorWalletStatusQueryOptions = useMemo(() => ({
-    enabled: appUser?.role === 'vendor' && !!appUser && !!supabaseSession?.access_token,
-  }), [appUser, supabaseSession]);
+  const vendorWalletStatusQueryOptions = useMemo(
+    () => ({
+      enabled:
+        appUser?.role === "vendor" &&
+        !!appUser &&
+        !!supabaseSession?.access_token,
+    }),
+    [appUser, supabaseSession],
+  );
 
   useGetVendorWalletStatusQuery(vendorWalletStatusQueryOptions);
 
@@ -64,7 +73,15 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     } else if (!isLoadingUser && supabaseSession && isErrorUser) {
       storeLogout();
     }
-  }, [userProfileData, supabaseSession, isLoadingUser, isErrorUser, storeSetUser, storeLogout, getMeError]);
+  }, [
+    userProfileData,
+    supabaseSession,
+    isLoadingUser,
+    isErrorUser,
+    storeSetUser,
+    storeLogout,
+    getMeError,
+  ]);
 
   const logoutMutation = useLogoutMutation();
 
@@ -73,9 +90,12 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
     const checkSession = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
         if (error) {
-          console.error('AppLayout: Error in getSession():', error);
+          console.error("AppLayout: Error in getSession():", error);
           setSupabaseSession(null);
           storeLogout();
         } else {
@@ -85,7 +105,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
           }
         }
       } catch (e) {
-        console.error('AppLayout: Exception in getSession():', e);
+        console.error("AppLayout: Exception in getSession():", e);
         setSupabaseSession(null);
         storeLogout();
       }
@@ -95,8 +115,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (event: AuthChangeEvent, newSession: Session | null) => {
-        
-        setSupabaseSession(prevLocalSession => {
+        setSupabaseSession((prevLocalSession) => {
           const newAccessToken = newSession?.access_token;
           const prevAccessToken = prevLocalSession?.access_token;
           const newUserId = newSession?.user?.id;
@@ -108,22 +127,30 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
           return prevLocalSession;
         });
 
-        if (event === 'SIGNED_OUT') {
+        if (event === "SIGNED_OUT") {
           storeLogout();
           setLoadingAuth(false);
-        } else if (event === 'SIGNED_IN') {
-        } else if (event === 'INITIAL_SESSION') {
-             if (!newSession) {
-                storeLogout();
-             }
-        }
-        if (!newSession && event !== 'SIGNED_OUT' && event !== 'INITIAL_SESSION') {
+        } else if (event === "SIGNED_IN") {
+        } else if (event === "INITIAL_SESSION") {
+          if (!newSession) {
             storeLogout();
+          }
         }
-        if (newSession || event === 'SIGNED_OUT' || (event === 'INITIAL_SESSION' && !newSession)) {
-            setLoadingAuth(false);
+        if (
+          !newSession &&
+          event !== "SIGNED_OUT" &&
+          event !== "INITIAL_SESSION"
+        ) {
+          storeLogout();
         }
-      }
+        if (
+          newSession ||
+          event === "SIGNED_OUT" ||
+          (event === "INITIAL_SESSION" && !newSession)
+        ) {
+          setLoadingAuth(false);
+        }
+      },
     );
 
     return () => {
@@ -131,7 +158,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     };
   }, [storeSetUser, storeLogout, storeSetIsLoading]);
 
-  const publicPaths = [ROUTES.LOGIN, ROUTES.SIGNUP, '/'];
+  const publicPaths = [ROUTES.LOGIN, ROUTES.SIGNUP, "/"];
   const isPublicPage = publicPaths.includes(router.pathname);
 
   if (loadingAuth && !isPublicPage) {
@@ -141,7 +168,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
       </Flex>
     );
   }
-  
+
   if (isLoadingUser && !isPublicPage && supabaseSession) {
     return (
       <Flex justify="center" align="center" height="100vh">
@@ -151,8 +178,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   }
 
   if (!supabaseSession && !isPublicPage && !loadingAuth) {
-    if (typeof window !== 'undefined') {
-      router.push('/login');
+    if (typeof window !== "undefined") {
+      router.push("/login");
     }
     return (
       <Flex justify="center" align="center" height="100vh">
@@ -163,28 +190,45 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
   if (isErrorUser && !isPublicPage && supabaseSession && !isLoadingUser) {
     return (
-        <Flex direction="column" justify="center" align="center" height="100vh">
-            <Text color="red.500" mb={4}>Could not load your profile. Please try logging out and in again.</Text>
-            <Button onClick={() => logoutMutation.mutate()} isLoading={logoutMutation.isPending} colorScheme="red">
-                Logout
-            </Button>
-        </Flex>
+      <Flex direction="column" justify="center" align="center" height="100vh">
+        <Text color="red.500" mb={4}>
+          Could not load your profile. Please try logging out and in again.
+        </Text>
+        <Button
+          onClick={() => logoutMutation.mutate()}
+          isLoading={logoutMutation.isPending}
+          colorScheme="red"
+        >
+          Logout
+        </Button>
+      </Flex>
     );
   }
-  
-  if (appUser && !isLoadingUser && (router.pathname === ROUTES.LOGIN || router.pathname === ROUTES.SIGNUP)) {
-    if (typeof window !== 'undefined') {
-        const dashboardPath = appUser.role === 'sponsor' ? ROUTES.SPONSOR_DASHBOARD : ROUTES.VENDOR_DASHBOARD;
-        router.push(dashboardPath);
+
+  if (
+    appUser &&
+    !isLoadingUser &&
+    (router.pathname === ROUTES.LOGIN || router.pathname === ROUTES.SIGNUP)
+  ) {
+    if (typeof window !== "undefined") {
+      const dashboardPath =
+        appUser.role === "sponsor"
+          ? ROUTES.SPONSOR_DASHBOARD
+          : ROUTES.VENDOR_DASHBOARD;
+      router.push(dashboardPath);
     }
-    return <Flex justify="center" align="center" height="100vh"><Spinner size="xl" /></Flex>;
+    return (
+      <Flex justify="center" align="center" height="100vh">
+        <Spinner size="xl" />
+      </Flex>
+    );
   }
 
   const baseRenderCondition = !!(appUser && !isLoadingUser);
   const showNavbar = isPublicPage || baseRenderCondition;
   let canRenderChildren: boolean = isPublicPage || baseRenderCondition;
 
-  if (appUser?.role === 'vendor' && !isPublicPage) {
+  if (appUser?.role === "vendor" && !isPublicPage) {
     if (isCheckingVendorWalletStatus) {
       canRenderChildren = false;
     } else if (hasVendorWallet === false) {
@@ -195,17 +239,40 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   return (
     <Box>
       {showNavbar && <Navbar />}
-      {appUser?.role === 'vendor' && <SmartWalletSetupModal />}
+      {appUser?.role === "vendor" && <SmartWalletSetupModal />}
       <Container maxW="container.xl" py={8} as="main">
-        {canRenderChildren ? children : (
-          !isPublicPage && <Flex justify="center" align="center" height="calc(100vh - 128px)"><Spinner size="xl" /></Flex>
-        )}
+        {canRenderChildren
+          ? children
+          : !isPublicPage && (
+              <Flex
+                justify="center"
+                align="center"
+                height="calc(100vh - 128px)"
+              >
+                <Spinner size="xl" />
+              </Flex>
+            )}
       </Container>
-      <Box as="footer" textAlign="center" py={4} borderTopWidth={1} borderColor="gray.200">
-        <Text fontSize="sm">&copy; {new Date().getFullYear()} ZepPay. All rights reserved.</Text>
+      <Box
+        as="footer"
+        textAlign="center"
+        py={4}
+        borderTopWidth={1}
+        borderColor="gray.200"
+        bg={"white"}
+        position="fixed"
+        bottom={0}
+        left={0}
+        right={0}
+        zIndex={1000}
+      >
+        <HStack w="100%" justify="space-between" px={6}>
+          <Text fontSize="sm">&copy; {new Date().getFullYear()} ZepPay.</Text>
+          <Text fontSize="sm">All rights reserved.</Text>
+        </HStack>
       </Box>
     </Box>
   );
 };
 
-export default AppLayout; 
+export default AppLayout;

@@ -166,7 +166,7 @@ export const SmartWalletSetupModal = () => {
         <ModalBody pb={6}>
           <Stepper
             index={currentStep}
-            colorScheme="teal"
+            colorScheme="brand"
             mb={6}
             orientation="horizontal"
           >
@@ -199,7 +199,7 @@ export const SmartWalletSetupModal = () => {
                 Coinbase.
               </Text>
               <Button
-                colorScheme="teal"
+                colorScheme="brand"
                 onClick={handleConnectWallet}
                 isLoading={isConnecting}
                 loadingText="Connecting to Coinbase Wallet..."
@@ -227,7 +227,7 @@ export const SmartWalletSetupModal = () => {
               <Text fontSize="lg">Confirm Your Wallet</Text>
               <Text>Your Smart Wallet has been connected successfully:</Text>
               <Box borderWidth="1px" borderRadius="md" p={3} bg="gray.50">
-                <Tag size="md" colorScheme="green" mb={2}>
+                <Tag size="md" colorScheme="brand" mb={2}>
                   Connected Wallet Address
                 </Tag>
                 <Text
@@ -244,7 +244,7 @@ export const SmartWalletSetupModal = () => {
                 use for receiving payments on ZepPay.
               </Text>
               <Button
-                colorScheme="green"
+                colorScheme="brand"
                 onClick={handleRegisterWallet}
                 isLoading={isRegistering}
                 loadingText="Registering Wallet..."

@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { NextPage } from 'next';
-import { useRouter } from 'next/router';
-import { useSignUpMutation } from '@/frontend/hooks';
-import { UserRole } from '@/common/types/auth.d';
+import { useState } from "react";
+import { NextPage } from "next";
+import { useRouter } from "next/router";
+import { useSignUpMutation } from "@/frontend/hooks";
+import { UserRole } from "@/common/types/auth.d";
 import {
   Box,
   Button,
@@ -17,9 +17,9 @@ import {
   FormErrorMessage,
   Link,
   useToast,
-} from '@chakra-ui/react';
-import { useQueryClient } from '@tanstack/react-query';
-import { ME_QUERY_KEY } from '@/frontend/hooks/queries/use-get-me-query';
+} from "@chakra-ui/react";
+import { useQueryClient } from "@tanstack/react-query";
+import { ME_QUERY_KEY } from "@/frontend/hooks/queries/use-get-me-query";
 
 const SignUpPage: NextPage = () => {
   const queryClient = useQueryClient();
@@ -28,42 +28,47 @@ const SignUpPage: NextPage = () => {
 
   const { mutate: signUp, isPending: isSigningUp } = useSignUpMutation({
     onSuccess: (data) => {
-      console.log('Account created:', data);
+      console.log("Account created:", data);
       queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
       toast({
-        title: 'Account created.',
-        description: "Your account has been successfully created. Please log in.",
-        status: 'success',
+        title: "Account created.",
+        description:
+          "Your account has been successfully created. Please log in.",
+        status: "success",
         duration: 5000,
         isClosable: true,
       });
-      router.push('/login');
+      router.push("/login");
     },
     onError: (error) => {
-      console.error('Sign up failed:', error.message);
-      const errorMessage = typeof error.message === 'string' ? error.message : 'An unexpected error occurred';
-      setErrors(prev => ({ ...prev, form: errorMessage }));
+      console.error("Sign up failed:", error.message);
+      const errorMessage =
+        typeof error.message === "string"
+          ? error.message
+          : "An unexpected error occurred";
+      setErrors((prev) => ({ ...prev, form: errorMessage }));
     },
   });
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [role, setRole] = useState<UserRole>('sponsor');
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [role, setRole] = useState<UserRole>("sponsor");
+  const [phoneNumber, setPhoneNumber] = useState("");
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   const validate = () => {
     const newErrors: { [key: string]: string } = {};
-    if (!displayName) newErrors.displayName = 'Display name is required';
-    if (!email) newErrors.email = 'Email is required';
-    else if (!/\S+@\S+\.\S+/.test(email)) newErrors.email = 'Email is invalid';
-    if (!password) newErrors.password = 'Password is required';
-    else if (password.length < 8) newErrors.password = 'Password must be at least 8 characters';
-    if (!role) newErrors.role = 'Role is required';
-    if (role === 'vendor' && !phoneNumber) {
-      newErrors.phoneNumber = 'Phone number is required for vendors';
+    if (!displayName) newErrors.displayName = "Display name is required";
+    if (!email) newErrors.email = "Email is required";
+    else if (!/\S+@\S+\.\S+/.test(email)) newErrors.email = "Email is invalid";
+    if (!password) newErrors.password = "Password is required";
+    else if (password.length < 8)
+      newErrors.password = "Password must be at least 8 characters";
+    if (!role) newErrors.role = "Role is required";
+    if (role === "vendor" && !phoneNumber) {
+      newErrors.phoneNumber = "Phone number is required for vendors";
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -73,23 +78,39 @@ const SignUpPage: NextPage = () => {
     e.preventDefault();
     setErrors({});
     if (!validate()) return;
-    signUp({ email, password, role, display_name: displayName, phone_number: phoneNumber || undefined });
+    signUp({
+      email,
+      password,
+      role,
+      display_name: displayName,
+      phone_number: phoneNumber || undefined,
+    });
   };
 
   return (
     <Container centerContent py={12}>
-      <Box width={{ base: '90%', md: '400px' }} p={8} borderWidth={1} borderRadius="md" boxShadow="lg">
+      <Box
+        width={{ base: "90%", md: "400px" }}
+        p={8}
+        borderWidth={1}
+        borderRadius="md"
+        boxShadow="lg"
+      >
         <Heading as="h1" size="lg" textAlign="center" mb={6}>
           Create Account
         </Heading>
         <form onSubmit={handleSubmit}>
           <Stack spacing={4}>
             {errors.form && (
-                <Box my={4} p={3} bg="red.100" borderRadius="md">
-                    <Text color="red.700">{errors.form}</Text>
-                </Box>
+              <Box my={4} p={3} bg="red.100" borderRadius="md">
+                <Text color="red.700">{errors.form}</Text>
+              </Box>
             )}
-            <FormControl id="displayName" isInvalid={!!errors.displayName} isRequired>
+            <FormControl
+              id="displayName"
+              isInvalid={!!errors.displayName}
+              isRequired
+            >
               <FormLabel>Display Name</FormLabel>
               <Input
                 type="text"
@@ -97,7 +118,9 @@ const SignUpPage: NextPage = () => {
                 onChange={(e) => setDisplayName(e.target.value)}
                 aria-invalid={!!errors.displayName}
               />
-              {errors.displayName && <FormErrorMessage>{errors.displayName}</FormErrorMessage>}
+              {errors.displayName && (
+                <FormErrorMessage>{errors.displayName}</FormErrorMessage>
+              )}
             </FormControl>
 
             <FormControl id="email" isInvalid={!!errors.email} isRequired>
@@ -108,7 +131,9 @@ const SignUpPage: NextPage = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 aria-invalid={!!errors.email}
               />
-              {errors.email && <FormErrorMessage>{errors.email}</FormErrorMessage>}
+              {errors.email && (
+                <FormErrorMessage>{errors.email}</FormErrorMessage>
+              )}
             </FormControl>
 
             <FormControl id="password" isInvalid={!!errors.password} isRequired>
@@ -119,34 +144,53 @@ const SignUpPage: NextPage = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 aria-invalid={!!errors.password}
               />
-              {errors.password && <FormErrorMessage>{errors.password}</FormErrorMessage>}
+              {errors.password && (
+                <FormErrorMessage>{errors.password}</FormErrorMessage>
+              )}
             </FormControl>
 
             <FormControl id="role" isInvalid={!!errors.role} isRequired>
               <FormLabel>Role</FormLabel>
-              <Select 
-                  value={role}
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setRole(e.target.value as UserRole)}
-                  aria-invalid={!!errors.role}
-                >
-                  <option value="sponsor">Sponsor</option>
-                  <option value="vendor">Vendor</option>
+              <Select
+                value={role}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                  setRole(e.target.value as UserRole)
+                }
+                aria-invalid={!!errors.role}
+              >
+                <option value="sponsor">Sponsor</option>
+                <option value="vendor">Vendor</option>
               </Select>
-              {errors.role && <FormErrorMessage>{errors.role}</FormErrorMessage>}
+              {errors.role && (
+                <FormErrorMessage>{errors.role}</FormErrorMessage>
+              )}
             </FormControl>
 
-            <FormControl id="phoneNumber" isInvalid={!!errors.phoneNumber} isRequired={role === 'vendor'}>
-              <FormLabel>Phone Number {role === 'vendor' ? '(Required)' : '(Optional)'}</FormLabel>
+            <FormControl
+              id="phoneNumber"
+              isInvalid={!!errors.phoneNumber}
+              isRequired={role === "vendor"}
+            >
+              <FormLabel>
+                Phone Number {role === "vendor" ? "(Required)" : "(Optional)"}
+              </FormLabel>
               <Input
                 type="tel"
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
                 aria-invalid={!!errors.phoneNumber}
               />
-              {errors.phoneNumber && <FormErrorMessage>{errors.phoneNumber}</FormErrorMessage>}
+              {errors.phoneNumber && (
+                <FormErrorMessage>{errors.phoneNumber}</FormErrorMessage>
+              )}
             </FormControl>
 
-            <Button type="submit" colorScheme="blue" width="full" isLoading={isSigningUp}>
+            <Button
+              type="submit"
+              colorScheme="brand"
+              width="full"
+              isLoading={isSigningUp}
+            >
               Sign Up
             </Button>
           </Stack>
@@ -164,4 +208,4 @@ const SignUpPage: NextPage = () => {
   );
 };
 
-export default SignUpPage; 
+export default SignUpPage;

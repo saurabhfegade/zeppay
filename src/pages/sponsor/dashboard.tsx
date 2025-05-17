@@ -57,6 +57,7 @@ import {
 } from "@/frontend/hooks/mutations/use-create-sponsorship-mutation";
 import { Beneficiary } from "@/common/types/api";
 import { Category } from "@/common/types/database.types";
+import { coinbase_color } from "config";
 
 // Define a type for common API error responses
 interface ApiErrorResponse {
@@ -252,7 +253,7 @@ const SponsorDashboardPage = () => {
           Sponsor Dashboard
         </Heading>
         <Button
-          colorScheme="teal"
+          colorScheme="brand"
           onClick={onOpen}
           isLoading={createSponsorshipMutation.isPending}
         >
@@ -341,7 +342,7 @@ const SponsorDashboardPage = () => {
           <ModalBody pb={6}>
             <Stepper
               index={activeStep}
-              colorScheme="teal"
+              colorScheme="brand"
               mb={6}
               orientation="horizontal"
             >
@@ -487,7 +488,7 @@ const SponsorDashboardPage = () => {
             </Button>
             {activeStep < steps.length - 1 && (
               <Button
-                colorScheme="teal"
+                colorScheme="brand"
                 onClick={handleNext}
                 isLoading={createSponsorshipMutation.isPending}
               >
@@ -496,7 +497,7 @@ const SponsorDashboardPage = () => {
             )}
             {activeStep === steps.length - 1 && (
               <Button
-                colorScheme="green"
+                colorScheme="brand"
                 onClick={handleCreateSponsorship}
                 isLoading={createSponsorshipMutation.isPending}
               >
@@ -506,8 +507,6 @@ const SponsorDashboardPage = () => {
           </ModalFooter>
         </ModalContent>
       </Modal>
-
-      <Text mt={8}>More features coming soon!</Text>
     </Box>
   );
 };

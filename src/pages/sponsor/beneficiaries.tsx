@@ -1,7 +1,7 @@
-import { NextPage } from 'next';
-import { useGetSponsorBeneficiariesQuery } from '@/frontend/hooks/queries/use-get-sponsor-beneficiaries-query';
-import { useAddSponsorBeneficiaryMutation } from '@/frontend/hooks/mutations/use-add-sponsor-beneficiary-mutation';
-import { AddSponsorBeneficiaryPayload } from '@/backend/validation/beneficiary-validation';
+import { NextPage } from "next";
+import { useGetSponsorBeneficiariesQuery } from "@/frontend/hooks/queries/use-get-sponsor-beneficiaries-query";
+import { useAddSponsorBeneficiaryMutation } from "@/frontend/hooks/mutations/use-add-sponsor-beneficiary-mutation";
+import { AddSponsorBeneficiaryPayload } from "@/backend/validation/beneficiary-validation";
 import {
   Box,
   Heading,
@@ -32,11 +32,11 @@ import {
   FormErrorMessage,
   VStack,
   useToast,
-} from '@chakra-ui/react';
-import { useForm, SubmitHandler } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { addSponsorBeneficiarySchema } from '@/backend/validation/beneficiary-validation'; // For client-side validation
-import { AxiosError } from 'axios'; // For error typing
+} from "@chakra-ui/react";
+import { useForm, SubmitHandler } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { addSponsorBeneficiarySchema } from "@/backend/validation/beneficiary-validation"; // For client-side validation
+import { AxiosError } from "axios"; // For error typing
 
 // Interface for API error structure, mirrors the one in the mutation hook
 interface ApiErrorResponse {
@@ -69,32 +69,41 @@ const SponsorBeneficiariesPage: NextPage = () => {
     resolver: zodResolver(addSponsorBeneficiarySchema),
   });
 
-  const onSubmit: SubmitHandler<AddSponsorBeneficiaryPayload> = async (data: AddSponsorBeneficiaryPayload) => {
+  const onSubmit: SubmitHandler<AddSponsorBeneficiaryPayload> = async (
+    data: AddSponsorBeneficiaryPayload,
+  ) => {
     try {
       await addBeneficiaryMutation.mutateAsync(data);
       toast({
-        title: 'Beneficiary added.',
-        description: "The new beneficiary has been successfully added to your list.",
-        status: 'success',
+        title: "Beneficiary added.",
+        description:
+          "The new beneficiary has been successfully added to your list.",
+        status: "success",
         duration: 5000,
         isClosable: true,
       });
       reset();
       onClose();
-    } catch (error) { // Typed error
+    } catch (error) {
+      // Typed error
       const err = error as AxiosError<ApiErrorResponse>;
-      const apiErrorMessage = err.response?.data?.message || 'Failed to add beneficiary.';
+      const apiErrorMessage =
+        err.response?.data?.message || "Failed to add beneficiary.";
       const formErrors = err.response?.data?.errors?.fieldErrors;
       toast({
-        title: 'Error adding beneficiary.',
+        title: "Error adding beneficiary.",
         description: apiErrorMessage,
-        status: 'error',
+        status: "error",
         duration: 7000,
         isClosable: true,
       });
       if (formErrors) {
         Object.keys(formErrors).forEach((key) => {
-          console.error(`Form error for ${key}: ${formErrors[key as keyof typeof formErrors]?.join(', ')}`);
+          console.error(
+            `Form error for ${key}: ${formErrors[
+              key as keyof typeof formErrors
+            ]?.join(", ")}`,
+          );
         });
       }
     }
@@ -104,11 +113,15 @@ const SponsorBeneficiariesPage: NextPage = () => {
     <>
       <Box py={8} px={{ base: 4, md: 8 }}>
         <VStack spacing={6} align="stretch">
-          <Box display="flex" justifyContent="space-between" alignItems="center">
+          <Box
+            display="flex"
+            justifyContent="space-between"
+            alignItems="center"
+          >
             <Heading as="h1" size="xl">
               My Beneficiaries
             </Heading>
-            <Button colorScheme="blue" onClick={onOpen}>
+            <Button colorScheme="brand" onClick={onOpen}>
               Add New Beneficiary
             </Button>
           </Box>
@@ -122,7 +135,9 @@ const SponsorBeneficiariesPage: NextPage = () => {
             <Alert status="error">
               <AlertIcon />
               <AlertTitle>Error loading beneficiaries!</AlertTitle>
-              <AlertDescription>{queryError.message || 'Could not fetch your beneficiaries.'}</AlertDescription>
+              <AlertDescription>
+                {queryError.message || "Could not fetch your beneficiaries."}
+              </AlertDescription>
             </Alert>
           )}
           {!isLoading && !isError && beneficiaries && (
@@ -137,12 +152,14 @@ const SponsorBeneficiariesPage: NextPage = () => {
                 <Tbody>
                   {beneficiaries.length === 0 && (
                     <Tr>
-                      <Td colSpan={2} textAlign="center">You haven&apos;t added any beneficiaries yet.</Td>
+                      <Td colSpan={2} textAlign="center">
+                        You haven&apos;t added any beneficiaries yet.
+                      </Td>
                     </Tr>
                   )}
                   {beneficiaries.map((beneficiary) => (
                     <Tr key={beneficiary.id}>
-                      <Td>{beneficiary.display_name || 'N/A'}</Td>
+                      <Td>{beneficiary.display_name || "N/A"}</Td>
                       <Td>{beneficiary.phone_number_for_telegram}</Td>
                     </Tr>
                   ))}
@@ -157,7 +174,12 @@ const SponsorBeneficiariesPage: NextPage = () => {
         <ModalOverlay />
         <ModalContent>
           <ModalHeader>Add New Beneficiary</ModalHeader>
-          <CloseButton position="absolute" right="8px" top="8px" onClick={onClose} />
+          <CloseButton
+            position="absolute"
+            right="8px"
+            top="8px"
+            onClick={onClose}
+          />
           <form onSubmit={handleSubmit(onSubmit)}>
             <ModalBody pb={6}>
               <VStack spacing={4}>
@@ -166,7 +188,7 @@ const SponsorBeneficiariesPage: NextPage = () => {
                   <Input
                     id="display_name"
                     placeholder="Enter beneficiary's name"
-                    {...register('display_name')}
+                    {...register("display_name")}
                   />
                   <FormErrorMessage>
                     {errors.display_name && errors.display_name.message}
@@ -174,15 +196,18 @@ const SponsorBeneficiariesPage: NextPage = () => {
                 </FormControl>
 
                 <FormControl isInvalid={!!errors.phone_number_for_telegram}>
-                  <FormLabel htmlFor="phone_number_for_telegram">Phone Number (for Telegram)</FormLabel>
+                  <FormLabel htmlFor="phone_number_for_telegram">
+                    Phone Number (for Telegram)
+                  </FormLabel>
                   <Input
                     id="phone_number_for_telegram"
                     type="tel"
                     placeholder="+12345678900 (E.164 format)"
-                    {...register('phone_number_for_telegram')}
+                    {...register("phone_number_for_telegram")}
                   />
                   <FormErrorMessage>
-                    {errors.phone_number_for_telegram && errors.phone_number_for_telegram.message}
+                    {errors.phone_number_for_telegram &&
+                      errors.phone_number_for_telegram.message}
                   </FormErrorMessage>
                 </FormControl>
               </VStack>
@@ -192,8 +217,8 @@ const SponsorBeneficiariesPage: NextPage = () => {
               <Button onClick={onClose} mr={3} variant="ghost">
                 Cancel
               </Button>
-              <Button 
-                colorScheme="blue" 
+              <Button
+                colorScheme="brand"
                 type="submit"
                 isLoading={addBeneficiaryMutation.isPending || isSubmitting}
               >
@@ -207,4 +232,4 @@ const SponsorBeneficiariesPage: NextPage = () => {
   );
 };
 
-export default SponsorBeneficiariesPage; 
+export default SponsorBeneficiariesPage;
