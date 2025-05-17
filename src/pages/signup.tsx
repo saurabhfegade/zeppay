@@ -60,8 +60,11 @@ const SignUpPage: NextPage = () => {
     if (!email) newErrors.email = 'Email is required';
     else if (!/\S+@\S+\.\S+/.test(email)) newErrors.email = 'Email is invalid';
     if (!password) newErrors.password = 'Password is required';
-    else if (password.length < 6) newErrors.password = 'Password must be at least 6 characters';
+    else if (password.length < 8) newErrors.password = 'Password must be at least 8 characters';
     if (!role) newErrors.role = 'Role is required';
+    if (role === 'vendor' && !phoneNumber) {
+      newErrors.phoneNumber = 'Phone number is required for vendors';
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -132,13 +135,15 @@ const SignUpPage: NextPage = () => {
               {errors.role && <FormErrorMessage>{errors.role}</FormErrorMessage>}
             </FormControl>
 
-            <FormControl id="phoneNumber">
-              <FormLabel>Phone Number (Optional)</FormLabel>
+            <FormControl id="phoneNumber" isInvalid={!!errors.phoneNumber} isRequired={role === 'vendor'}>
+              <FormLabel>Phone Number {role === 'vendor' ? '(Required)' : '(Optional)'}</FormLabel>
               <Input
                 type="tel"
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
+                aria-invalid={!!errors.phoneNumber}
               />
+              {errors.phoneNumber && <FormErrorMessage>{errors.phoneNumber}</FormErrorMessage>}
             </FormControl>
 
             <Button type="submit" colorScheme="blue" width="full" isLoading={isSigningUp}>
