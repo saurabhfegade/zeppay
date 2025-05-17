@@ -44,6 +44,7 @@ import {
   VStack,
   HStack,
   Divider,
+  Link,
 } from "@chakra-ui/react";
 import React, { useState } from "react";
 import axios, { AxiosError } from "axios";
@@ -328,6 +329,17 @@ const SponsorDashboardPage = () => {
           <Text>No WaaS wallet information available at the moment.</Text>
         )}
       </Box>
+      <HStack>
+        <Text fontSize="sm" color="gray.500">
+          Your beneficiaries need to register with the Telegram Bot to receive
+          alerts and OTPs for transactions.
+        </Text>
+        <Link href="http://t.me/ZeppayAssistBot" isExternal>
+          <Button colorScheme="brand" variant="link">
+            Link to Telegram Bot
+          </Button>
+        </Link>
+      </HStack>
 
       <Modal
         isOpen={isOpen}
